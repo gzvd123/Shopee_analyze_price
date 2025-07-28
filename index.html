@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Titans of Tech: Elon Musk & Jack Ma</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* Custom styles and animations */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #100f1c; /* Dark purple-blue */
+            color: #e0e0e0; /* Off-white text */
+            overflow: hidden;
+        }
+
+        h1, h2, h3 {
+            font-family: 'Playfair Display', serif;
+        }
+
+        /* Animated Aurora Background */
+        .aurora-background {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: -1; overflow: hidden;
+        }
+        .aurora {
+            position: absolute; border-radius: 50%;
+            filter: blur(80px); opacity: 0.4;
+        }
+        .aurora-1 {
+            width: 50vw; height: 50vw; background: #4a00e0;
+            top: -20%; left: -10%;
+            animation: moveAurora1 25s infinite alternate ease-in-out;
+        }
+        .aurora-2 {
+            width: 40vw; height: 40vw; background: #8e2de2;
+            bottom: -15%; right: -10%;
+            animation: moveAurora2 25s infinite alternate ease-in-out;
+        }
+        @keyframes moveAurora1 { from { transform: translate(-20%, -10%) rotate(0deg); } to { transform: translate(20%, 10%) rotate(45deg); } }
+        @keyframes moveAurora2 { from { transform: translate(15%, 10%) rotate(0deg); } to { transform: translate(-15%, -10%) rotate(-45deg); } }
+
+        /* Slide structure */
+        .slide {
+            display: none; position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0; transition: opacity 0.8s ease-in-out;
+            padding: 3rem 4rem;
+        }
+        .slide.active { display: flex; opacity: 1; z-index: 10; }
+
+        /* Content animation keyframes */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(25px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes scaleIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+
+        /* Applying animations */
+        .active .animate-fade { animation: fadeIn 1.5s ease-out 0.2s forwards; }
+        .active .animate-title { animation: fadeInUp 1s ease-out 0.4s forwards; }
+        .active .animate-subtitle { animation: fadeInUp 1s ease-out 0.7s forwards; }
+        .active .animate-text-col { animation: fadeInUp 1s ease-out 0.6s forwards; }
+        .active .animate-image-col { animation: scaleIn 1.2s ease-out 0.8s forwards; }
+        .active .animate-image { animation: scaleIn 1.2s ease-out 0.5s forwards; }
+        .active .stagger-item { animation: fadeInUp 0.8s ease-out forwards; opacity: 0; }
+        .active .stagger-item:nth-child(1) { animation-delay: 0.8s; }
+        .active .stagger-item:nth-child(2) { animation-delay: 1.0s; }
+        .active .stagger-item:nth-child(3) { animation-delay: 1.2s; }
+
+        /* Initial state for animated elements */
+        .animate-fade, .animate-title, .animate-subtitle, .animate-text-col, .animate-image-col, .animate-image, .stagger-item { opacity: 0; }
+
+        /* Navigation buttons */
+        .nav-button {
+            position: fixed; z-index: 20; bottom: 2rem;
+            background-color: rgba(0, 0, 0, 0.2);
+            color: white; border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 9999px; width: 3.5rem; height: 3.5rem;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(8px);
+        }
+        .nav-button:hover { background-color: rgba(255, 255, 255, 0.1); transform: scale(1.1); }
+        #prev { left: 2rem; }
+        #next { right: 2rem; }
+        #slide-counter {
+            position: fixed; z-index: 20; bottom: 2.8rem; left: 50%;
+            transform: translateX(-50%); background-color: rgba(0, 0, 0, 0.2);
+            padding: 0.5rem 1.5rem; border-radius: 9999px; font-size: 1rem;
+            font-weight: 700; backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Ask AI Button */
+        .ask-ai-button {
+            position: fixed; z-index: 20; bottom: 2rem; left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(45deg, #8e2de2, #4a00e0);
+            color: white; font-weight: bold;
+            padding: 0.75rem 1.5rem; border-radius: 9999px;
+            cursor: pointer; transition: all 0.3s ease;
+            display: none; /* Hidden by default */
+            box-shadow: 0 4px 20px rgba(142, 45, 226, 0.5);
+        }
+        .ask-ai-button:hover { transform: translateX(-50%) scale(1.05); }
+
+        /* Gemini AI Modal Styles */
+        #ai-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            display: none; justify-content: center; align-items: center;
+            z-index: 50; opacity: 0; transition: opacity 0.3s ease-in-out;
+        }
+        #ai-modal.visible { display: flex; opacity: 1; }
+        .modal-content {
+            background-color: #1a192a; border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 2rem; border-radius: 1rem;
+            width: 90%; max-width: 600px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transform: scale(0.95); transition: transform 0.3s ease-in-out;
+        }
+        #ai-modal.visible .modal-content { transform: scale(1); }
+        #ai-question {
+            width: 100%; background-color: #100f1c;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 0.75rem 1rem; border-radius: 0.5rem;
+            color: white; margin-bottom: 1rem;
+        }
+        #ai-answer {
+            margin-top: 1.5rem; padding: 1rem;
+            background-color: #100f1c; border-radius: 0.5rem;
+            height: 200px; overflow-y: auto;
+            color: #d1d5db; line-height: 1.6;
+        }
+        .ai-button {
+            background-color: #8e2de2; color: white;
+            font-weight: bold; padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem; border: none; cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .ai-button:hover { background-color: #4a00e0; }
+        
+        /* Loading spinner */
+        .loader {
+            border: 4px solid #f3f3f3; border-top: 4px solid #8e2de2;
+            border-radius: 50%; width: 30px; height: 30px;
+            animation: spin 1s linear infinite; margin: 2rem auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="w-screen h-screen">
+
+    <div class="aurora-background">
+        <div class="aurora aurora-1"></div>
+        <div class="aurora aurora-2"></div>
+    </div>
+
+    <div id="slide-1" class="slide active flex-col justify-center items-center text-center">
+        <h1 class="text-6xl md:text-8xl font-black tracking-tight animate-title">Titans of Tech</h1>
+        <h2 class="text-3xl md:text-4xl font-bold text-amber-300 mt-4 animate-subtitle">Elon Musk & Jack Ma</h2>
+        <p class="mt-8 text-lg text-slate-300 animate-text-col">Two Entrepreneurs, Two Paths to Change the World</p>
+    </div>
+
+    <div id="slide-2" class="slide flex-col md:flex-row items-center justify-center gap-12">
+        <div class="md:w-1/2 animate-text-col">
+            <h2 class="text-4xl md:text-5xl font-bold">Who Are These Entrepreneurs?</h2>
+            <p class="mt-8 text-xl text-slate-300 leading-relaxed">
+                We will explore the lives of two modern business giants. One wants to take us to the stars. The other built an online empire from his small apartment. Their stories show us that great success comes from big dreams and hard work.
+            </p>
+        </div>
+        <div class="md:w-1/2 animate-image-col">
+            <img src="images/vision.jpg" alt="Symbol of vision and ideas" class="rounded-lg shadow-2xl shadow-purple-500/20">
+        </div>
+    </div>
+
+    <div id="slide-3" class="slide flex-col md:flex-row items-center justify-center gap-12">
+        <div class="md:w-1/2 animate-image">
+            <img src="images/elonmusk.png" alt="Portrait of Elon Musk" class="rounded-lg shadow-2xl shadow-cyan-500/20">
+        </div>
+        <div class="md:w-1/2 text-center md:text-left">
+            <h2 class="text-6xl font-black animate-title">Elon Musk</h2>
+            <h3 class="text-3xl font-bold text-cyan-400 mt-2 animate-subtitle">The Futurist</h3>
+            <p class="mt-6 text-xl text-slate-300 animate-text-col">An engineer and innovator who works on solving some of humanity's biggest challenges, from sustainable energy to space colonization.</p>
+        </div>
+    </div>
+
+    <div id="slide-4" class="slide flex-col md:flex-row items-center justify-center gap-12">
+        <div class="md:w-1/2 animate-text-col">
+            <h2 class="text-4xl font-bold">Musk's Journey: From Books to Rockets</h2>
+            <ul class="mt-8 space-y-4">
+                <li class="stagger-item"><h3 class="font-bold text-xl text-cyan-400">Early Life</h3><p class="text-slate-300 mt-1">Born in South Africa, he loved reading books and taught himself computer programming. At age 12, he sold his first software: a video game.</p></li>
+                <li class="stagger-item"><h3 class="font-bold text-xl text-cyan-400">First Successes</h3><p class="text-slate-300 mt-1">He moved to the US and started companies like Zip2 and X.com, which later became PayPal. Selling PayPal made him a multi-millionaire.</p></li>
+                <li class="stagger-item"><h3 class="font-bold text-xl text-cyan-400">Big Goals</h3><p class="text-slate-300 mt-1">Instead of retiring, he used his money to start SpaceX and invest in Tesla.</p></li>
+            </ul>
+        </div>
+        <div class="md:w-1/2 animate-image-col">
+            <img src="images/jouney.jpg" alt="Symbol of a journey or path" class="rounded-lg shadow-2xl shadow-cyan-500/20">
+        </div>
+    </div>
+
+    <div id="slide-5" class="slide flex-col md:flex-row items-center justify-center gap-12">
+        <div class="md:w-1/2 animate-text-col">
+            <h2 class="text-4xl font-bold">Musk's Philosophy: First Principles</h2>
+            <div class="mt-8 text-lg text-slate-300 leading-relaxed">
+                <p>He uses "first principles thinking." This means he breaks down a problem to its most basic parts and builds a solution from there. For example, instead of buying expensive rockets, he asked, "What are rockets made of?" and found a way to build them much cheaper.</p>
+                <blockquote class="mt-8 border-l-4 border-cyan-400 pl-4 italic text-xl">"I think it is possible for ordinary people to choose to be extraordinary."</blockquote>
+            </div>
+        </div>
+        <div class="md:w-1/2 animate-image-col">
+            <img src="images/tesla.jpg" alt="Symbol of innovation and technology" class="rounded-lg shadow-2xl shadow-cyan-500/20">
+        </div>
+    </div>
+
+    <div id="slide-6" class="slide flex-col md:flex-row-reverse items-center justify-center gap-12">
+        <div class="md:w-1/2 animate-image">
+            <img src="images/jackma.jpg" alt="Portrait of Jack Ma" class="rounded-lg shadow-2xl shadow-amber-500/20">
+        </div>
+        <div class="md:w-1/2 text-center md:text-left">
+            <h2 class="text-6xl font-black animate-title">Jack Ma</h2>
+            <h3 class="text-3xl font-bold text-amber-400 mt-2 animate-subtitle">The Visionary Teacher</h3>
+            <p class="mt-6 text-xl text-slate-300 animate-text-col">A former English teacher who faced many rejections but built one of the world's largest e-commerce companies, Alibaba.</p>
+        </div>
+    </div>
+
+    <div id="slide-7" class="slide flex-col md:flex-row-reverse items-center justify-center gap-12">
+        <div class="md:w-1/2 animate-text-col">
+            <h2 class="text-4xl font-bold">Ma's Journey: Rejection to Riches</h2>
+            <ul class="mt-8 space-y-4">
+                <li class="stagger-item"><h3 class="font-bold text-xl text-amber-400">A Life of Failure</h3><p class="text-slate-300 mt-1">He failed his university entrance exam three times. He applied for 30 different jobs and was rejected by all of them, including KFC.</p></li>
+                <li class="stagger-item"><h3 class="font-bold text-xl text-amber-400">Discovering the Internet</h3><p class="text-slate-300 mt-1">On a trip to the US, he used the internet for the first time. He saw its power to connect businesses and started "China Pages".</p></li>
+                <li class="stagger-item"><h3 class="font-bold text-xl text-amber-400">Founding Alibaba</h3><p class="text-slate-300 mt-1">In 1999, he gathered 17 friends in his small apartment and started Alibaba, a website to help small businesses sell their products online.</p></li>
+            </ul>
+        </div>
+        <div class="md:w-1/2 animate-image-col">
+            <img src="images/Persistence.jpg" alt="Symbol of persistence and growth" class="rounded-lg shadow-2xl shadow-amber-500/20">
+        </div>
+    </div>
+    
+    <div id="slide-8" class="slide flex-col md:flex-row items-center justify-center gap-12">
+        <div class="md:w-1/2 animate-text-col">
+            <h2 class="text-4xl font-bold">Ma's Philosophy: Customers First</h2>
+            <div class="mt-8 text-lg text-slate-300 leading-relaxed">
+                <p>His philosophy is simple: "Customers first, employees second, and shareholders third." He believes that if you take care of your customers and employees, the business will be successful, and the shareholders will be happy. He focuses on helping small businesses succeed.</p>
+                <blockquote class="mt-8 border-l-4 border-amber-400 pl-4 italic text-xl">"Today is hard, tomorrow will be worse, but the day after tomorrow will be sunshine."</blockquote>
+            </div>
+        </div>
+        <div class="md:w-1/2 animate-image-col">
+            <img src="images/Global Commerce.jpg" alt="Symbol of global commerce and connection" class="rounded-lg shadow-2xl shadow-amber-500/20">
+        </div>
+    </div>
+
+    <div id="slide-9" class="slide flex-col justify-center items-center max-w-5xl mx-auto">
+        <h2 class="text-4xl md:text-5xl font-bold text-center animate-title">Two Titans, Two Philosophies</h2>
+        <div class="mt-10 flex flex-col md:flex-row gap-8 w-full">
+            <div class="md:w-1/2 bg-black/20 p-6 rounded-lg border border-cyan-500/30 stagger-item"><h3 class="text-2xl font-bold text-cyan-400 text-center">Elon Musk</h3><p class="mt-4 text-center text-lg">Focuses on technology and engineering to solve huge, future problems. He wants to push the limits of what is possible for humanity.</p></div>
+            <div class="md:w-1/2 bg-black/20 p-6 rounded-lg border border-amber-500/30 stagger-item" style="animation-delay: 1s;"><h3 class="text-2xl font-bold text-amber-400 text-center">Jack Ma</h3><p class="mt-4 text-center text-lg">Focuses on people and the market to solve today's problems. He wants to empower the "little guys" and small businesses using technology.</p></div>
+        </div>
+    </div>
+
+    <div id="slide-10" class="slide flex-col md:flex-row-reverse items-center justify-center gap-12">
+        <div class="md:w-1/2 animate-text-col">
+            <h2 class="text-5xl font-bold">What Can We Learn?</h2>
+            <p class="mt-6 text-xl text-slate-300 leading-relaxed">Both Elon Musk and Jack Ma show us that there are many ways to succeed. What they have in common is a big vision, incredible persistence, and a desire to make an impact on the world.</p>
+            <h3 class="mt-12 text-6xl font-black text-amber-300">Thank You!</h3>
+        </div>
+        <div class="md:w-1/2 animate-image-col">
+            <img src="images/Impact.jpg" alt="Symbol of impact and conclusion" class="rounded-lg shadow-2xl shadow-purple-500/20">
+        </div>
+    </div>
+
+    <button id="prev" class="nav-button">&lt;</button>
+    <button id="next" class="nav-button">&gt;</button>
+    <div id="slide-counter">1 / 10</div>
+    <button id="ask-ai-btn" class="ask-ai-button">Ask AI</button>
+
+    <div id="ai-modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="ai-modal-title" class="text-2xl font-bold">Ask AI</h3>
+                <button id="close-modal-btn" class="text-2xl font-bold">&times;</button>
+            </div>
+            <p class="text-slate-400 mb-4">Ask a question about the current topic.</p>
+            <input type="text" id="ai-question" placeholder="e.g., What was his first company?">
+            <button id="submit-ai-question" class="ai-button w-full">Get Answer</button>
+            <div id="ai-answer">
+                <div class="loader" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Basic Slide Navigation ---
+            const slides = document.querySelectorAll('.slide');
+            const prevButton = document.getElementById('prev');
+            const nextButton = document.getElementById('next');
+            const counterElement = document.getElementById('slide-counter');
+            const totalSlides = slides.length;
+            let currentSlide = 0;
+
+            // --- AI Modal Elements ---
+            const askAiButton = document.getElementById('ask-ai-btn');
+            const aiModal = document.getElementById('ai-modal');
+            const closeModalButton = document.getElementById('close-modal-btn');
+            const submitAiQuestionButton = document.getElementById('submit-ai-question');
+            const aiQuestionInput = document.getElementById('ai-question');
+            const aiAnswerBox = document.getElementById('ai-answer');
+            const aiModalTitle = document.getElementById('ai-modal-title');
+            const loader = aiAnswerBox.querySelector('.loader');
+            let currentAiSubject = '';
+
+            // --- Mapping slides to AI subjects ---
+            const aiSubjects = {
+                2: 'Elon Musk', // Slide 3 (index 2)
+                3: 'Elon Musk', // Slide 4
+                4: 'Elon Musk', // Slide 5
+                5: 'Jack Ma',   // Slide 6
+                6: 'Jack Ma',   // Slide 7
+                7: 'Jack Ma',   // Slide 8
+            };
+
+            function showSlide(index) {
+                slides[currentSlide].classList.remove('active');
+                currentSlide = (index + totalSlides) % totalSlides;
+                slides[currentSlide].classList.add('active');
+                counterElement.textContent = `${currentSlide + 1} / ${totalSlides}`;
+
+                // Show or hide the "Ask AI" button
+                if (aiSubjects[currentSlide]) {
+                    currentAiSubject = aiSubjects[currentSlide];
+                    askAiButton.style.display = 'block';
+                } else {
+                    askAiButton.style.display = 'none';
+                }
+            }
+
+            // --- AI Modal Functions ---
+            function openAiModal() {
+                aiModalTitle.textContent = `Ask about ${currentAiSubject}`;
+                aiQuestionInput.value = '';
+                aiAnswerBox.innerHTML = '<div class="loader" style="display: none;"></div>'; // Reset answer
+                aiModal.classList.add('visible');
+            }
+
+            function closeAiModal() {
+                aiModal.classList.remove('visible');
+            }
+
+            async function getAiResponse() {
+                const question = aiQuestionInput.value;
+                if (!question) {
+                    aiAnswerBox.textContent = 'Please enter a question.';
+                    return;
+                }
+
+                const loader = aiAnswerBox.querySelector('.loader');
+                loader.style.display = 'block';
+                aiAnswerBox.innerHTML = ''; // Clear previous answer
+                aiAnswerBox.appendChild(loader);
+
+                // Construct a detailed prompt for the Gemini API
+                const prompt = `In the context of the entrepreneur ${currentAiSubject}, please answer the following question in a simple and clear way for someone new to the topic: "${question}"`;
+                
+                const apiKey = "AIzaSyBLh1kH84hd38562pRe2gWiSXIBOKs5C5Y"; // Leave empty, will be handled by the environment
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                try {
+                    let chatHistory = [];
+                    chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                    const payload = { contents: chatHistory };
+                    
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API Error: ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    let text = "Sorry, I couldn't find an answer.";
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        text = result.candidates[0].content.parts[0].text;
+                    }
+                    
+                    aiAnswerBox.innerHTML = text.replace(/\n/g, '<br>');
+
+                } catch (error) {
+                    console.error("Error calling Gemini API:", error);
+                    aiAnswerBox.textContent = 'An error occurred. Please try again later.';
+                } finally {
+                    loader.style.display = 'none';
+                }
+            }
+
+            // --- Event Listeners ---
+            nextButton.addEventListener('click', () => showSlide(currentSlide + 1));
+            prevButton.addEventListener('click', () => showSlide(currentSlide - 1));
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowRight' || e.key === ' ') {
+                    showSlide(currentSlide + 1);
+                } else if (e.key === 'ArrowLeft') {
+                    showSlide(currentSlide - 1);
+                } else if (e.key === 'Escape' && aiModal.classList.contains('visible')) {
+                    closeAiModal();
+                }
+            });
+
+            askAiButton.addEventListener('click', openAiModal);
+            closeModalButton.addEventListener('click', closeAiModal);
+            aiModal.addEventListener('click', (e) => {
+                if (e.target === aiModal) closeAiModal();
+            });
+            submitAiQuestionButton.addEventListener('click', getAiResponse);
+            aiQuestionInput.addEventListener('keyup', (e) => {
+                if (e.key === 'Enter') getAiResponse();
+            });
+
+            // Initial setup
+            showSlide(0);
+        });
+    </script>
+
+</body>
+</html>
