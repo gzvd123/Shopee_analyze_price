@@ -206,6 +206,69 @@
             opacity: 0.9;
         }
 
+        .config-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            margin: 20px 0;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .config-card {
+            padding: 15px;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #f9fafb 0%, #eef2f7 100%);
+        }
+
+        .config-card h3 {
+            margin-bottom: 10px;
+            color: #111827;
+        }
+
+        .config-item {
+            margin-bottom: 12px;
+        }
+
+        .config-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #4b5563;
+        }
+
+        .config-input {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .config-input input {
+            flex: 1;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .config-unit {
+            font-weight: 600;
+            color: #6b7280;
+        }
+
+        .config-note {
+            font-size: 0.9rem;
+            color: #6b7280;
+        }
+
         .chart-container {
             background: white;
             padding: 20px;
@@ -780,6 +843,35 @@
             <p>Công cụ phân tích giá bán sản phẩm chuyên nghiệp</p>
         </div>
 
+        <div class="config-panel" id="config">
+            <h2 class="section-title">⚙️ #config - Cấu hình phí và rủi ro</h2>
+            <p class="config-note">Điều chỉnh phí nền tảng, cấu hình hoa hồng/voucher và dự phòng rủi ro hoàn hàng. Các giá trị mặc định phản ánh bảng phí hiện tại (PiShip 1.620đ, phí hạ tầng 3.000đ, hoa hồng liên kết mặc định 0%).</p>
+            <div class="config-grid">
+                <div class="config-card">
+                    <h3>Phí nền tảng</h3>
+                    <div id="feeConfigForm"></div>
+                </div>
+                <div class="config-card">
+                    <h3>Rủi ro hoàn hàng</h3>
+                    <div class="config-item">
+                        <label class="config-label" for="returnRate">Tỉ lệ hoàn hàng dự phòng</label>
+                        <div class="config-input">
+                            <input type="number" id="returnRate" min="0" step="0.1" value="3">
+                            <span class="config-unit">%</span>
+                        </div>
+                    </div>
+                    <div class="config-item">
+                        <label class="config-label" for="returnHandling">Chi phí xử lý mỗi đơn hoàn</label>
+                        <div class="config-input">
+                            <input type="number" id="returnHandling" min="0" step="500" value="8000">
+                            <span class="config-unit">VND</span>
+                        </div>
+                    </div>
+                    <p class="config-note">Dự phòng rủi ro được cộng trực tiếp vào chi phí để tính hòa vốn và lợi nhuận.</p>
+                </div>
+            </div>
+        </div>
+
         <div class="tabs">
             <button class="tab-button active" onclick="switchTab('single')">📊 Phân tích đơn sản phẩm</button>
             <button class="tab-button" onclick="switchTab('multi')">📦 Phân tích đa sản phẩm</button>
@@ -1189,14 +1281,28 @@
     </div>
 
     <script>
-        // Platform fees configuration
-        const PLATFORM_FEES = {
-            transactionFee: 3000,
-            fixedFee: 1650,
-            freeShippingRate: 0.06,
-            transactionProcessingRate: 0.05,
-            voucherRate: 0.03,
-            revenueTaxRate: 0.015 // 1.5% revenue tax
+        // Platform fees and risk configuration
+        const CONFIG = {
+            fees: {
+                infrastructure: { label: 'Phí hạ tầng', type: 'fixed', value: 3000 },
+                piship: { label: 'PiShip', type: 'fixed', value: 1620 },
+                voucherXtra: { label: 'Voucher Xtra 2.5%', type: 'percentage', value: 2.5 },
+                platformFixed: { label: 'Phí cố định', type: 'percentage', value: 6.87 },
+                service: { label: 'Phí dịch vụ', type: 'percentage', value: 4.14 },
+                payment: { label: 'Phí thanh toán', type: 'percentage', value: 4.91 },
+                affiliate: { label: 'Hoa hồng liên kết', type: 'percentage', value: 0 },
+                tax: { label: 'Thuế', type: 'percentage', value: 1.5 }
+            },
+            risk: {
+                returnRate: 3,
+                returnHandlingCost: 8000
+            },
+            defaults: {
+                packagingFee: 1500
+            },
+            currency: {
+                exchangeRate: 3750
+            }
         };
 
         // Global variables
@@ -1206,7 +1312,139 @@
         let vouchers = [];
         let currencyMode = false; // false = VND, true = CNY
         let batchShippingMode = false;
-        let exchangeRate = 3750;
+        let exchangeRate = CONFIG.currency.exchangeRate;
+
+        function renderFeeConfig() {
+            const container = document.getElementById('feeConfigForm');
+            if (!container) return;
+
+            const feeFields = Object.entries(CONFIG.fees).map(([key, fee]) => {
+                const unit = fee.type === 'percentage' ? '%' : 'VND';
+                const step = fee.type === 'percentage' ? '0.01' : '100';
+
+                return `
+                    <div class="config-item">
+                        <label class="config-label">${fee.label}</label>
+                        <div class="config-input">
+                            <input type="number" data-fee-key="${key}" min="0" step="${step}" value="${fee.value}">
+                            <span class="config-unit">${unit}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = feeFields;
+
+            container.querySelectorAll('input[data-fee-key]').forEach(input => {
+                input.addEventListener('input', event => {
+                    const key = event.target.dataset.feeKey;
+                    if (CONFIG.fees[key]) {
+                        CONFIG.fees[key].value = parseFloat(event.target.value) || 0;
+                        calculate();
+                        calculateMultiProduct();
+                        calculateProfitAnalysis();
+                        updateAnalyticsDashboard();
+                        saveToStorage();
+                    }
+                });
+            });
+
+            const returnRateInput = document.getElementById('returnRate');
+            const returnHandlingInput = document.getElementById('returnHandling');
+
+            returnRateInput?.addEventListener('input', event => {
+                CONFIG.risk.returnRate = parseFloat(event.target.value) || 0;
+                calculate();
+                calculateMultiProduct();
+                calculateProfitAnalysis();
+                updateAnalyticsDashboard();
+                saveToStorage();
+            });
+
+            returnHandlingInput?.addEventListener('input', event => {
+                CONFIG.risk.returnHandlingCost = parseFloat(event.target.value) || 0;
+                calculate();
+                calculateMultiProduct();
+                calculateProfitAnalysis();
+                updateAnalyticsDashboard();
+                saveToStorage();
+            });
+        }
+
+        function syncConfigUI() {
+            Object.entries(CONFIG.fees).forEach(([key, fee]) => {
+                const input = document.querySelector(`input[data-fee-key="${key}"]`);
+                if (input) input.value = fee.value;
+            });
+
+            const returnRateInput = document.getElementById('returnRate');
+            const returnHandlingInput = document.getElementById('returnHandling');
+            if (returnRateInput) returnRateInput.value = CONFIG.risk.returnRate;
+            if (returnHandlingInput) returnHandlingInput.value = CONFIG.risk.returnHandlingCost;
+        }
+
+        function getPercentageFeeRate() {
+            return Object.values(CONFIG.fees)
+                .filter(fee => fee.type === 'percentage')
+                .reduce((sum, fee) => sum + ((fee.value || 0) / 100), 0);
+        }
+
+        function getFixedFeeTotal() {
+            return Object.values(CONFIG.fees)
+                .filter(fee => fee.type === 'fixed')
+                .reduce((sum, fee) => sum + (fee.value || 0), 0);
+        }
+
+        function calculatePlatformFees(sellingPrice) {
+            const details = {};
+            let total = 0;
+
+            Object.entries(CONFIG.fees).forEach(([key, fee]) => {
+                const value = fee.type === 'percentage'
+                    ? sellingPrice * ((fee.value || 0) / 100)
+                    : (fee.value || 0);
+                details[key] = value;
+                total += value;
+            });
+
+            return {
+                ...details,
+                total,
+                percentageRate: getPercentageFeeRate(),
+                fixedTotal: getFixedFeeTotal()
+            };
+        }
+
+        function calculateRiskBuffer(sellingPrice) {
+            const rate = (CONFIG.risk.returnRate || 0) / 100;
+            const handling = CONFIG.risk.returnHandlingCost || 0;
+            const expectedReturnLoss = sellingPrice * rate;
+            const handlingProvision = handling * rate;
+
+            return {
+                expectedReturnLoss,
+                handlingProvision,
+                total: expectedReturnLoss + handlingProvision
+            };
+        }
+
+        function calculateRecommendedPrice(baseCostPerUnit, profitValue, profitType) {
+            const percentageRate = getPercentageFeeRate() + (CONFIG.risk.returnRate || 0) / 100;
+            const fixedFees = getFixedFeeTotal() + ((CONFIG.risk.returnHandlingCost || 0) * ((CONFIG.risk.returnRate || 0) / 100));
+
+            if (profitType === 'percentage' && profitValue > 0) {
+                const profitRate = profitValue / 100;
+                const denominator = 1 - percentageRate - profitRate;
+                if (denominator <= 0) return 0;
+                return (baseCostPerUnit + fixedFees) / denominator;
+            }
+
+            if (profitType === 'fixed' && profitValue > 0) {
+                return calculatePriceForFixedProfit(baseCostPerUnit, profitValue);
+            }
+
+            return baseCostPerUnit + fixedFees;
+        }
 
         // Tab switching functionality
         function switchTab(tabName) {
@@ -1302,7 +1540,7 @@
             const costPrice = parseFloat(inputs.costPrice.value) || 0;
             const quantity = parseInt(inputs.quantity.value) || 1;
             const totalShipping = parseFloat(inputs.totalShipping.value) || 0;
-            const packagingFee = parseFloat(inputs.packagingFee.value) || 0;
+            const packagingFee = parseFloat(inputs.packagingFee.value) || CONFIG.defaults.packagingFee;
             const profitValue = parseFloat(inputs.profitValue.value) || 0;
             const profitType = getProfitType();
 
@@ -1312,23 +1550,15 @@
             // Calculate base cost per unit
             const baseCostPerUnit = costPrice + shippingPerUnit + packagingFee;
 
-            // Calculate recommended selling price based on profit type
-            let recommendedPrice = 0;
-            if (profitType === 'percentage' && profitValue > 0) {
-                // For percentage: selling price = base cost / (1 - profit% - platform fees%)
-                const totalFeeRate = PLATFORM_FEES.freeShippingRate + PLATFORM_FEES.transactionProcessingRate + PLATFORM_FEES.voucherRate;
-                const profitRate = profitValue / 100;
-                recommendedPrice = (baseCostPerUnit + PLATFORM_FEES.transactionFee + PLATFORM_FEES.fixedFee) / (1 - profitRate - totalFeeRate);
-            } else if (profitType === 'fixed' && profitValue > 0) {
-                // For fixed amount: iterate to find selling price that gives desired profit
-                recommendedPrice = calculatePriceForFixedProfit(baseCostPerUnit, profitValue);
-            }
+            // Calculate recommended selling price based on profit type and config
+            const recommendedPrice = calculateRecommendedPrice(baseCostPerUnit, profitValue, profitType);
 
-            // Calculate platform fees based on recommended price
+            // Calculate platform fees and risk buffers based on recommended price
             const platformFees = calculatePlatformFees(recommendedPrice);
-            const totalCostPerUnit = baseCostPerUnit + platformFees.total;
+            const riskCosts = calculateRiskBuffer(recommendedPrice);
+            const totalCostPerUnit = baseCostPerUnit + platformFees.total + riskCosts.total;
 
-            // Calculate actual profit
+            // Calculate actual profit (after risk provisioning)
             const actualProfitAmount = recommendedPrice - totalCostPerUnit;
             const actualProfitPercentage = recommendedPrice > 0 ? (actualProfitAmount / recommendedPrice) * 100 : 0;
             const profitOnCostPercentage = baseCostPerUnit > 0 ? (actualProfitAmount / baseCostPerUnit) * 100 : 0;
@@ -1345,7 +1575,7 @@
             results.breakEvenPrice.textContent = formatCurrency(breakEvenPrice);
 
             // Update cost breakdown
-            updateCostBreakdown(baseCostPerUnit, platformFees, recommendedPrice);
+            updateCostBreakdown(baseCostPerUnit, platformFees, recommendedPrice, riskCosts);
 
             // Add animation
             document.getElementById('resultsGrid').classList.add('animate-fade-in');
@@ -1353,70 +1583,55 @@
             // Save to localStorage
             saveToStorage();
         }
-
-        function calculatePlatformFees(sellingPrice) {
-            const freeShippingFee = sellingPrice * PLATFORM_FEES.freeShippingRate;
-            const transactionProcessingFee = sellingPrice * PLATFORM_FEES.transactionProcessingRate;
-            const voucherFee = sellingPrice * PLATFORM_FEES.voucherRate;
-            const revenueTax = sellingPrice * PLATFORM_FEES.revenueTaxRate;
-
-            return {
-                transactionFee: PLATFORM_FEES.transactionFee,
-                fixedFee: PLATFORM_FEES.fixedFee,
-                freeShippingFee,
-                transactionProcessingFee,
-                voucherFee,
-                revenueTax,
-                total: PLATFORM_FEES.transactionFee + PLATFORM_FEES.fixedFee + freeShippingFee + transactionProcessingFee + voucherFee + revenueTax
-            };
-        }
-
         function calculatePriceForFixedProfit(baseCost, desiredProfit) {
-            // Use iterative approach to find selling price that gives desired fixed profit
-            let sellingPrice = baseCost + desiredProfit + 10000; // Initial guess
+            let low = baseCost;
+            let high = baseCost + desiredProfit + 300000; // generous upper bound for convergence
 
-            for (let i = 0; i < 100; i++) {
-                const platformFees = calculatePlatformFees(sellingPrice);
-                const totalCost = baseCost + platformFees.total;
-                const actualProfit = sellingPrice - totalCost;
+            for (let i = 0; i < 80; i++) {
+                const mid = (low + high) / 2;
+                const platformFees = calculatePlatformFees(mid);
+                const riskCosts = calculateRiskBuffer(mid);
+                const totalCost = baseCost + platformFees.total + riskCosts.total;
+                const profit = mid - totalCost;
 
-                if (Math.abs(actualProfit - desiredProfit) < 1) {
-                    break;
+                if (profit < desiredProfit) {
+                    low = mid;
+                } else {
+                    high = mid;
                 }
-
-                // Adjust selling price
-                const adjustment = (desiredProfit - actualProfit) * 1.2;
-                sellingPrice += adjustment;
-
-                if (sellingPrice < 0) sellingPrice = baseCost + desiredProfit;
             }
 
-            return Math.max(sellingPrice, baseCost);
+            return high;
         }
 
         function calculateBreakEvenPrice(baseCost) {
-            // Break-even price where profit = 0 (including revenue tax)
-            const totalFeeRate = PLATFORM_FEES.freeShippingRate + PLATFORM_FEES.transactionProcessingRate +
-                                PLATFORM_FEES.voucherRate + PLATFORM_FEES.revenueTaxRate;
-            return (baseCost + PLATFORM_FEES.transactionFee + PLATFORM_FEES.fixedFee) / (1 - totalFeeRate);
+            const percentageRate = getPercentageFeeRate() + (CONFIG.risk.returnRate || 0) / 100;
+            const riskFixed = (CONFIG.risk.returnHandlingCost || 0) * ((CONFIG.risk.returnRate || 0) / 100);
+            const fixedPortion = getFixedFeeTotal() + riskFixed;
+
+            const denominator = 1 - percentageRate;
+            if (denominator <= 0) return 0;
+            return (baseCost + fixedPortion) / denominator;
         }
 
-        function updateCostBreakdown(baseCost, platformFees, sellingPrice) {
+        function updateCostBreakdown(baseCost, platformFees, sellingPrice, riskCosts) {
             const costPrice = parseFloat(inputs.costPrice.value) || 0;
             const shippingPerUnit = (parseFloat(inputs.totalShipping.value) || 0) / (parseInt(inputs.quantity.value) || 1);
-            const packagingFee = parseFloat(inputs.packagingFee.value) || 0;
+            const packagingFee = parseFloat(inputs.packagingFee.value) || CONFIG.defaults.packagingFee;
+
+            const feeDetails = Object.entries(CONFIG.fees).map(([key, fee]) => {
+                const value = platformFees[key] || 0;
+                const suffix = fee.type === 'percentage' ? `(${fee.value}% doanh thu)` : '(cố định)';
+                return { label: `${fee.label} ${suffix}`, value };
+            });
 
             const breakdown = [
                 { label: 'Giá nhập hàng', value: costPrice },
                 { label: 'Phí ship/đơn vị', value: shippingPerUnit },
                 { label: 'Phí đóng gói', value: packagingFee },
-                { label: 'Phí giao dịch', value: platformFees.transactionFee },
-                { label: 'Phí cố định', value: platformFees.fixedFee },
-                { label: 'Phí freeship (6%)', value: platformFees.freeShippingFee },
-                { label: 'Phí xử lý (5%)', value: platformFees.transactionProcessingFee },
-                { label: 'Phí voucher (3%)', value: platformFees.voucherFee },
-                { label: 'Thuế doanh thu (1.5%)', value: platformFees.revenueTax },
-                { label: 'TỔNG CHI PHÍ', value: baseCost + platformFees.total }
+                ...feeDetails,
+                { label: 'Dự phòng hoàn hàng', value: riskCosts.total },
+                { label: 'TỔNG CHI PHÍ', value: baseCost + platformFees.total + riskCosts.total }
             ];
 
             results.costBreakdown.innerHTML = breakdown.map(item =>
@@ -1437,7 +1652,7 @@
                 costPriceCNY: 0,
                 quantity: 1,
                 shippingCost: 0,
-                packagingFee: 1500,
+                packagingFee: CONFIG.defaults.packagingFee,
                 profitMargin: 20,
                 targetSellingPrice: 0,
                 weight: 0,
@@ -1614,7 +1829,8 @@
                 }
 
                 const platformFees = calculatePlatformFees(recommendedPrice);
-                const totalProductCost = baseCost + platformFees.total;
+                const riskCosts = calculateRiskBuffer(recommendedPrice);
+                const totalProductCost = baseCost + platformFees.total + riskCosts.total;
                 const productProfit = recommendedPrice - totalProductCost;
                 const productRevenue = recommendedPrice * product.quantity;
 
@@ -1696,7 +1912,8 @@
             }
 
             const platformFees = calculatePlatformFees(sellingPrice);
-            const totalCostPerUnit = costPrice + (shippingCost / quantity) + 1500 + platformFees.total; // Default packaging fee
+            const riskCosts = calculateRiskBuffer(sellingPrice);
+            const totalCostPerUnit = costPrice + (shippingCost / quantity) + CONFIG.defaults.packagingFee + platformFees.total + riskCosts.total;
             const profitPerUnit = sellingPrice - totalCostPerUnit;
             const profitPerBatch = profitPerUnit * quantity;
             const totalRevenue = sellingPrice * quantity;
@@ -1754,21 +1971,38 @@
             let totalProfit = 0;
 
             // Add single product data if available
-            const singlePrice = parseFloat(inputs.costPrice.value) || 0;
+            const singleCost = parseFloat(inputs.costPrice.value) || 0;
             const singleQuantity = parseInt(inputs.quantity.value) || 1;
-            if (singlePrice > 0) {
-                const singleRevenue = singlePrice * singleQuantity * 1.2; // Estimated selling price
-                totalRevenue += singleRevenue;
-                totalCost += singlePrice * singleQuantity;
-                totalProfit += singleRevenue - (singlePrice * singleQuantity);
+            const singleShipping = parseFloat(inputs.totalShipping.value) || 0;
+            const singlePackaging = parseFloat(inputs.packagingFee.value) || CONFIG.defaults.packagingFee;
+            const desiredProfit = parseFloat(inputs.profitValue.value) || 0;
+
+            if (singleCost > 0) {
+                const baseCost = singleCost + (singleShipping / singleQuantity) + singlePackaging;
+                const recommended = calculateRecommendedPrice(baseCost, desiredProfit, getProfitType());
+                const fees = calculatePlatformFees(recommended);
+                const risk = calculateRiskBuffer(recommended);
+                const unitCost = baseCost + fees.total + risk.total;
+
+                totalRevenue += recommended * singleQuantity;
+                totalCost += unitCost * singleQuantity;
+                totalProfit += (recommended - unitCost) * singleQuantity;
             }
 
             // Add multi-product data
             products.forEach(product => {
-                const productRevenue = product.costPrice * product.quantity * 1.2;
-                totalRevenue += productRevenue;
-                totalCost += product.costPrice * product.quantity;
-                totalProfit += productRevenue - (product.costPrice * product.quantity);
+                const baseCost = product.costPrice + (product.shippingCost / product.quantity) + product.packagingFee;
+                const breakEven = calculateBreakEvenPrice(baseCost);
+                const sellingPrice = product.targetSellingPrice > 0
+                    ? product.targetSellingPrice
+                    : breakEven * (1 + (product.profitMargin || 0) / 100);
+                const fees = calculatePlatformFees(sellingPrice);
+                const risk = calculateRiskBuffer(sellingPrice);
+                const unitCost = baseCost + fees.total + risk.total;
+
+                totalRevenue += sellingPrice * product.quantity;
+                totalCost += unitCost * product.quantity;
+                totalProfit += (sellingPrice - unitCost) * product.quantity;
             });
 
             const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
@@ -1845,6 +2079,12 @@
                     batchShippingMode: batchShippingMode,
                     exchangeRate: exchangeRate
                 },
+                config: {
+                    fees: CONFIG.fees,
+                    risk: CONFIG.risk,
+                    defaults: CONFIG.defaults,
+                    currency: CONFIG.currency
+                },
                 profitAnalysis: {
                     actualSellingPrice: inputs.actualSellingPrice?.value || '',
                     actualCostPrice: inputs.actualCostPrice?.value || '',
@@ -1862,12 +2102,39 @@
                 try {
                     const data = JSON.parse(savedData);
 
+                    // Load config
+                    if (data.config) {
+                        if (data.config.fees) {
+                            Object.entries(CONFIG.fees).forEach(([key, fee]) => {
+                                if (data.config.fees[key]?.value !== undefined) {
+                                    fee.value = data.config.fees[key].value;
+                                }
+                            });
+                        }
+
+                        if (data.config.risk) {
+                            CONFIG.risk.returnRate = data.config.risk.returnRate ?? CONFIG.risk.returnRate;
+                            CONFIG.risk.returnHandlingCost = data.config.risk.returnHandlingCost ?? CONFIG.risk.returnHandlingCost;
+                        }
+
+                        if (data.config.defaults?.packagingFee) {
+                            CONFIG.defaults.packagingFee = data.config.defaults.packagingFee;
+                        }
+
+                        if (data.config.currency?.exchangeRate) {
+                            CONFIG.currency.exchangeRate = data.config.currency.exchangeRate;
+                            exchangeRate = CONFIG.currency.exchangeRate;
+                        }
+
+                        syncConfigUI();
+                    }
+
                     // Load single product data
                     if (data.singleProduct) {
                         inputs.costPrice.value = data.singleProduct.costPrice || '';
                         inputs.quantity.value = data.singleProduct.quantity || '1';
                         inputs.totalShipping.value = data.singleProduct.totalShipping || '';
-                        inputs.packagingFee.value = data.singleProduct.packagingFee || '1500';
+                        inputs.packagingFee.value = data.singleProduct.packagingFee || CONFIG.defaults.packagingFee || '1500';
                         inputs.profitValue.value = data.singleProduct.profitValue || '';
 
                         // Set profit type
@@ -1920,7 +2187,14 @@
 
         // Initialize the application
         function init() {
+            renderFeeConfig();
             loadFromStorage();
+            syncConfigUI();
+
+            if (inputs.packagingFee && !inputs.packagingFee.value) {
+                inputs.packagingFee.value = CONFIG.defaults.packagingFee;
+            }
+
             calculate();
             calculateMultiProduct();
             calculateProfitAnalysis();
@@ -2156,7 +2430,7 @@
                 const costPriceCNY = parseFloat(row[columnMap.costPriceCNY]) || 0;
                 const quantity = parseInt(row[columnMap.quantity]) || 0;
                 const shipping = parseFloat(row[columnMap.shipping]) || 0;
-                const packaging = parseFloat(row[columnMap.packaging]) || 1500;
+                const packaging = parseFloat(row[columnMap.packaging]) || CONFIG.defaults.packagingFee;
                 const profitMargin = parseFloat(row[columnMap.profitMargin]) || 20;
                 const targetPrice = parseFloat(row[columnMap.targetPrice]) || 0;
                 const weight = parseFloat(row[columnMap.weight]) || 0;
@@ -2384,6 +2658,13 @@
                 XLSX.utils.book_append_sheet(wb, ws, 'Chi tiết sản phẩm');
 
                 // Create summary sheet
+                const feeSummaryRows = Object.values(CONFIG.fees).map(fee => [
+                    `${fee.label}:`,
+                    fee.type === 'percentage'
+                        ? `${fee.value}% doanh thu`
+                        : `${Math.round(fee.value).toLocaleString('vi-VN')} VND/đơn`
+                ]);
+
                 const summaryData = [
                     ['BÁO CÁO TỔNG KẾT PHÂN TÍCH GIÁ'],
                     [''],
@@ -2397,17 +2678,13 @@
                     ['Tổng lợi nhuận dự kiến:', Math.round(totalProfit).toLocaleString('vi-VN') + ' VND'],
                     ['Tỷ suất lợi nhuận trung bình:', totalRevenue > 0 ? Math.round((totalProfit / totalRevenue) * 10000) / 100 + '%' : '0%'],
                     [''],
-                    ['CHI TIẾT PHÍ PLATFORM:'],
-                    ['Phí giao dịch:', PLATFORM_FEES.transactionFee.toLocaleString('vi-VN') + ' VND/đơn'],
-                    ['Phí cố định:', PLATFORM_FEES.fixedFee.toLocaleString('vi-VN') + ' VND/đơn'],
-                    ['Phí freeship:', (PLATFORM_FEES.freeShippingRate * 100) + '% doanh thu'],
-                    ['Phí xử lý giao dịch:', (PLATFORM_FEES.transactionProcessingRate * 100) + '% doanh thu'],
-                    ['Phí voucher:', (PLATFORM_FEES.voucherRate * 100) + '% doanh thu'],
-                    ['Thuế doanh thu:', (PLATFORM_FEES.revenueTaxRate * 100) + '% doanh thu'],
+                    ['CHI TIẾT PHÍ NỀN TẢNG:'],
+                    ...feeSummaryRows,
+                    ['Dự phòng hoàn hàng:', `${CONFIG.risk.returnRate}% doanh thu + ${Math.round(CONFIG.risk.returnHandlingCost).toLocaleString('vi-VN')} VND/đơn × tỉ lệ hoàn`],
                     [''],
                     ['GHI CHÚ:'],
-                    ['- Giá bán đề xuất đã bao gồm tất cả các phí platform'],
-                    ['- Tỷ suất lợi nhuận được tính trên doanh thu'],
+                    ['- Giá bán đề xuất đã bao gồm phí nền tảng và dự phòng rủi ro'],
+                    ['- Tỷ suất lợi nhuận được tính sau khi trừ phí và rủi ro'],
                     ['- Các số liệu là ước tính dựa trên dữ liệu nhập vào'],
                     ['- Cần xem xét thêm các yếu tố thị trường khi định giá']
                 ];
