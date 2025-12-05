@@ -18,7 +18,7 @@ const CONFIG = {
         packagingFee: 1500
     },
     currency: {
-        exchangeRate: 3750
+        exchangeRate: 4000
     }
 };
 
@@ -31,6 +31,13 @@ let currencyMode = false; // false = VND, true = CNY
 let batchShippingMode = false;
 let exchangeRate = CONFIG.currency.exchangeRate;
 const THEME_KEY = 'pricingTheme';
+let lastSingleAnalysis = null;
+let dashboardSnapshot = null;
+const chartInstances = {
+    costDonut: null,
+    profitSpark: null,
+    marginBar: null
+};
 
 function applyTheme(theme = 'light') {
     document.body.dataset.theme = theme;
@@ -277,6 +284,24 @@ function formatCurrency(amount) {
     return new Intl.NumberFormat('vi-VN').format(Math.round(amount)) + ' VND';
 }
 
+function adjustProfitByStrategy(profitValue, profitType, strategy) {
+    if (profitType === 'fixed') {
+        if (strategy === 'growth') return Math.max(0, profitValue - 3000);
+        if (strategy === 'premium') return profitValue + 6000;
+        return profitValue;
+    }
+
+    // percentage mode
+    switch (strategy) {
+        case 'growth':
+            return Math.max(0, profitValue - 5);
+        case 'premium':
+            return profitValue + 8;
+        default:
+            return profitValue + 2; // nhẹ nhàng boost để đảm bảo đủ biên
+    }
+}
+
 function calculate() {
     const costPrice = parseFloat(inputs.costPrice.value) || 0;
     const quantity = parseInt(inputs.quantity.value) || 1;
@@ -284,6 +309,8 @@ function calculate() {
     const packagingFee = parseFloat(inputs.packagingFee.value) || CONFIG.defaults.packagingFee;
     const profitValue = parseFloat(inputs.profitValue.value) || 0;
     const profitType = getProfitType();
+    const strategy = document.getElementById('pricingStrategy')?.value || 'balanced';
+    const adjustedProfitValue = adjustProfitByStrategy(profitValue, profitType, strategy);
 
     // Calculate shipping per unit
     const shippingPerUnit = totalShipping / quantity;
@@ -292,7 +319,7 @@ function calculate() {
     const baseCostPerUnit = costPrice + shippingPerUnit + packagingFee;
 
     // Calculate recommended selling price based on profit type and config
-    const recommendedPrice = calculateRecommendedPrice(baseCostPerUnit, profitValue, profitType);
+    const recommendedPrice = calculateRecommendedPrice(baseCostPerUnit, adjustedProfitValue, profitType);
 
     // Calculate platform fees and risk buffers based on recommended price
     const platformFees = calculatePlatformFees(recommendedPrice);
@@ -307,6 +334,17 @@ function calculate() {
     // Calculate break-even price
     const breakEvenPrice = calculateBreakEvenPrice(baseCostPerUnit);
 
+    lastSingleAnalysis = {
+        costPrice,
+        shippingPerUnit,
+        packagingFee,
+        platformFees,
+        riskCosts,
+        baseCostPerUnit,
+        recommendedPrice,
+        quantity
+    };
+
     // Update results
     results.shippingPerUnit.textContent = formatCurrency(shippingPerUnit);
     results.totalCostPerUnit.textContent = formatCurrency(totalCostPerUnit);
@@ -320,9 +358,31 @@ function calculate() {
 
     // Add animation
     document.getElementById('resultsGrid').classList.add('animate-fade-in');
+    burstResultsGrid();
+
+    // Refresh dashboard + charts
+    updateAnalyticsDashboard();
 
     // Save to localStorage
     saveToStorage();
+}
+
+function burstResultsGrid() {
+    const grid = document.getElementById('resultsGrid');
+    if (!grid) return;
+    grid.classList.add('burst');
+    setTimeout(() => grid.classList.remove('burst'), 650);
+}
+
+function triggerCalculation() {
+    showLoading('Đang tính toán & dựng biểu đồ...');
+
+    setTimeout(() => {
+        calculate();
+        calculateMultiProduct();
+        calculateProfitAnalysis();
+        hideLoading();
+    }, 320);
 }
 function calculatePriceForFixedProfit(baseCost, desiredProfit) {
     let low = baseCost;
@@ -548,6 +608,7 @@ function calculateMultiProduct() {
         document.getElementById('totalCost').textContent = '0 VND';
         document.getElementById('avgProfitMargin').textContent = '0%';
         document.getElementById('appliedVoucher').innerHTML = '';
+        updateAnalyticsDashboard();
         return;
     }
 
@@ -632,6 +693,8 @@ function calculateMultiProduct() {
             <td>${result.quantity}</td>
         </tr>
     `).join('');
+
+    updateAnalyticsDashboard();
 }
 
 // Profit analysis functionality
@@ -705,11 +768,12 @@ function updateComparisonMetrics(actualPrice, actualCost, actualProfit, actualMa
 }
 
 // Analytics dashboard
-function updateAnalyticsDashboard() {
-    // Aggregate data from all sources
+function aggregateMetrics() {
     let totalRevenue = 0;
     let totalCost = 0;
     let totalProfit = 0;
+    const costComponents = { cost: 0, shipping: 0, packaging: 0, fees: 0, risk: 0 };
+    let bestMargin = 0;
 
     // Add single product data if available
     const singleCost = parseFloat(inputs.costPrice.value) || 0;
@@ -717,21 +781,38 @@ function updateAnalyticsDashboard() {
     const singleShipping = parseFloat(inputs.totalShipping.value) || 0;
     const singlePackaging = parseFloat(inputs.packagingFee.value) || CONFIG.defaults.packagingFee;
     const desiredProfit = parseFloat(inputs.profitValue.value) || 0;
+    const strategy = document.getElementById('pricingStrategy')?.value || 'balanced';
 
     if (singleCost > 0) {
         const baseCost = singleCost + (singleShipping / singleQuantity) + singlePackaging;
-        const recommended = calculateRecommendedPrice(baseCost, desiredProfit, getProfitType());
+        const adjustedProfit = adjustProfitByStrategy(desiredProfit, getProfitType(), strategy);
+        const recommended = calculateRecommendedPrice(baseCost, adjustedProfit, getProfitType());
         const fees = calculatePlatformFees(recommended);
         const risk = calculateRiskBuffer(recommended);
         const unitCost = baseCost + fees.total + risk.total;
 
-        totalRevenue += recommended * singleQuantity;
-        totalCost += unitCost * singleQuantity;
-        totalProfit += (recommended - unitCost) * singleQuantity;
+        const revenue = recommended * singleQuantity;
+        const cost = unitCost * singleQuantity;
+        const profit = revenue - cost;
+
+        totalRevenue += revenue;
+        totalCost += cost;
+        totalProfit += profit;
+
+        costComponents.cost += singleCost * singleQuantity;
+        costComponents.shipping += singleShipping;
+        costComponents.packaging += singlePackaging * singleQuantity;
+        costComponents.fees += fees.total * singleQuantity;
+        costComponents.risk += risk.total * singleQuantity;
+
+        const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+        bestMargin = Math.max(bestMargin, margin);
     }
 
     // Add multi-product data
     products.forEach(product => {
+        if (!product.quantity) return;
+
         const baseCost = product.costPrice + (product.shippingCost / product.quantity) + product.packagingFee;
         const breakEven = calculateBreakEvenPrice(baseCost);
         const sellingPrice = product.targetSellingPrice > 0
@@ -741,22 +822,47 @@ function updateAnalyticsDashboard() {
         const risk = calculateRiskBuffer(sellingPrice);
         const unitCost = baseCost + fees.total + risk.total;
 
-        totalRevenue += sellingPrice * product.quantity;
-        totalCost += unitCost * product.quantity;
-        totalProfit += (sellingPrice - unitCost) * product.quantity;
+        const revenue = sellingPrice * product.quantity;
+        const cost = unitCost * product.quantity;
+        const profit = revenue - cost;
+
+        totalRevenue += revenue;
+        totalCost += cost;
+        totalProfit += profit;
+
+        costComponents.cost += product.costPrice * product.quantity;
+        costComponents.shipping += product.shippingCost;
+        costComponents.packaging += product.packagingFee * product.quantity;
+        costComponents.fees += fees.total * product.quantity;
+        costComponents.risk += risk.total * product.quantity;
+
+        const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+        bestMargin = Math.max(bestMargin, margin);
     });
+
+    const voucherSnapshot = findBestVoucher(totalRevenue);
+    if (voucherSnapshot.voucher) {
+        totalRevenue -= voucherSnapshot.discount;
+        totalProfit -= voucherSnapshot.discount;
+    }
 
     const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
-    // Update dashboard
-    document.getElementById('dashTotalRevenue').textContent = formatCurrency(totalRevenue);
-    document.getElementById('dashTotalCost').textContent = formatCurrency(totalCost);
-    document.getElementById('dashTotalProfit').textContent = formatCurrency(totalProfit);
-    document.getElementById('dashAvgMargin').textContent = avgMargin.toFixed(1) + '%';
+    return { totalRevenue, totalCost, totalProfit, avgMargin, costComponents, bestMargin };
+}
 
-    // Update cost structure analysis
-    updateCostStructureAnalysis(totalCost, totalRevenue);
-    updateProfitDistributionAnalysis(totalProfit, totalRevenue);
+function updateAnalyticsDashboard() {
+    dashboardSnapshot = aggregateMetrics();
+    const snapshot = dashboardSnapshot;
+
+    document.getElementById('dashTotalRevenue').textContent = formatCurrency(snapshot.totalRevenue);
+    document.getElementById('dashTotalCost').textContent = formatCurrency(snapshot.totalCost);
+    document.getElementById('dashTotalProfit').textContent = formatCurrency(snapshot.totalProfit);
+    document.getElementById('dashAvgMargin').textContent = snapshot.avgMargin.toFixed(1) + '%';
+
+    updateCostStructureAnalysis(snapshot.totalCost, snapshot.totalRevenue);
+    updateProfitDistributionAnalysis(snapshot.totalProfit, snapshot.totalRevenue);
+    updateCharts(snapshot);
 }
 
 function updateCostStructureAnalysis(totalCost, totalRevenue) {
@@ -802,6 +908,135 @@ function updateProfitDistributionAnalysis(totalProfit, totalRevenue) {
     document.getElementById('profitDistributionAnalysis').innerHTML = analysisHTML;
 }
 
+function updateCharts(snapshot) {
+    if (!snapshot) return;
+
+    const palette = ['#6b8cff', '#14b8a6', '#f97316', '#0ea5e9', '#a855f7'];
+
+    // Cost donut
+    const donutCtx = document.getElementById('costDonutChart');
+    if (donutCtx) {
+        const labels = ['Giá nhập', 'Vận chuyển', 'Đóng gói', 'Phí nền tảng', 'Dự phòng rủi ro'];
+        const data = [
+            snapshot.costComponents.cost,
+            snapshot.costComponents.shipping,
+            snapshot.costComponents.packaging,
+            snapshot.costComponents.fees,
+            snapshot.costComponents.risk
+        ];
+
+        if (!chartInstances.costDonut) {
+            chartInstances.costDonut = new Chart(donutCtx, {
+                type: 'doughnut',
+                data: {
+                    labels,
+                    datasets: [{
+                        data,
+                        backgroundColor: palette,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    cutout: '58%',
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${labels[ctx.dataIndex]}: ${formatCurrency(ctx.parsed)}`
+                            }
+                        }
+                    },
+                    animation: { duration: 600, easing: 'easeOutQuart' }
+                }
+            });
+        } else {
+            chartInstances.costDonut.data.datasets[0].data = data;
+            chartInstances.costDonut.update();
+        }
+    }
+
+    // Profit sparkline
+    const sparkCtx = document.getElementById('profitSparkChart');
+    if (sparkCtx) {
+        const labels = ['Khởi tạo', 'Hiện tại'];
+        const revenueSeries = [0, snapshot.totalRevenue];
+        const costSeries = [0, snapshot.totalCost];
+        const profitSeries = [0, snapshot.totalProfit];
+
+        if (!chartInstances.profitSpark) {
+            chartInstances.profitSpark = new Chart(sparkCtx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Doanh thu', data: revenueSeries, borderColor: palette[1], tension: 0.35, fill: false },
+                        { label: 'Chi phí', data: costSeries, borderColor: palette[0], tension: 0.35, fill: false },
+                        { label: 'Lợi nhuận', data: profitSeries, borderColor: palette[2], tension: 0.35, fill: false }
+                    ]
+                },
+                options: {
+                    plugins: {
+                        legend: { display: true },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y || ctx.parsed)}`
+                            }
+                        }
+                    },
+                    scales: { y: { ticks: { callback: value => value.toLocaleString('vi-VN') } } },
+                    interaction: { mode: 'index', intersect: false }
+                }
+            });
+        } else {
+            chartInstances.profitSpark.data.datasets[0].data = revenueSeries;
+            chartInstances.profitSpark.data.datasets[1].data = costSeries;
+            chartInstances.profitSpark.data.datasets[2].data = profitSeries;
+            chartInstances.profitSpark.update();
+        }
+    }
+
+    // Margin bar chart
+    const marginCtx = document.getElementById('marginBarChart');
+    if (marginCtx) {
+        const labels = ['Biên thực tế', 'Mục tiêu 25%', 'Sản phẩm tốt nhất'];
+        const data = [snapshot.avgMargin, 25, snapshot.bestMargin || snapshot.avgMargin];
+
+        if (!chartInstances.marginBar) {
+            chartInstances.marginBar = new Chart(marginCtx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        data,
+                        backgroundColor: [palette[1], palette[3], palette[2]],
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${labels[ctx.dataIndex]}: ${ctx.parsed.y.toFixed(1)}%`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            suggestedMax: Math.max(30, snapshot.bestMargin + 5),
+                            ticks: { callback: value => value + '%' }
+                        }
+                    }
+                }
+            });
+        } else {
+            chartInstances.marginBar.data.datasets[0].data = data;
+            chartInstances.marginBar.options.scales.y.suggestedMax = Math.max(30, snapshot.bestMargin + 5);
+            chartInstances.marginBar.update();
+        }
+    }
+}
+
 // Local storage functions
 function saveToStorage() {
     const data = {
@@ -811,7 +1046,8 @@ function saveToStorage() {
             totalShipping: inputs.totalShipping.value,
             packagingFee: inputs.packagingFee.value,
             profitValue: inputs.profitValue.value,
-            profitType: getProfitType()
+            profitType: getProfitType(),
+            pricingStrategy: document.getElementById('pricingStrategy')?.value || 'balanced'
         },
         products: products,
         vouchers: vouchers,
@@ -884,6 +1120,11 @@ function loadFromStorage() {
                 profitTypeRadios.forEach(radio => {
                     radio.checked = radio.value === data.singleProduct.profitType;
                 });
+
+                const strategySelect = document.getElementById('pricingStrategy');
+                if (strategySelect && data.singleProduct.pricingStrategy) {
+                    strategySelect.value = data.singleProduct.pricingStrategy;
+                }
             }
 
             // Load multi-product data
@@ -902,7 +1143,7 @@ function loadFromStorage() {
             if (data.settings) {
                 currencyMode = data.settings.currencyMode || false;
                 batchShippingMode = data.settings.batchShippingMode || false;
-                exchangeRate = data.settings.exchangeRate || 3750;
+                exchangeRate = data.settings.exchangeRate || 4000;
                 const preferredTheme = data.settings.theme || localStorage.getItem(THEME_KEY) || 'light';
                 applyTheme(preferredTheme);
                 localStorage.setItem(THEME_KEY, preferredTheme);
@@ -935,6 +1176,7 @@ function init() {
     applyTheme(localStorage.getItem(THEME_KEY) || 'light');
     document.getElementById('themeToggle')?.addEventListener('click', toggleTheme);
     document.getElementById('resetApp')?.addEventListener('click', resetApplication);
+    document.getElementById('calculateBtn')?.addEventListener('click', triggerCalculation);
 
     renderFeeConfig();
     loadFromStorage();
@@ -1505,7 +1747,7 @@ function toggleBatchShipping() {
 }
 
 function updateExchangeRate() {
-    exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 3750;
+    exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 4000;
     document.getElementById('exchangeDisplay').textContent = exchangeRate.toLocaleString('vi-VN');
 
     // Update all product prices
