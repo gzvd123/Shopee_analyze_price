@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Product Pricing Analysis Tool</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -107,6 +108,21 @@
                         <label for="profitValue">Lợi nhuận mong muốn:</label>
                         <input type="number" id="profitValue" placeholder="Nhập lợi nhuận..." min="0">
                     </div>
+
+                    <div class="form-group">
+                        <label for="pricingStrategy">Chiến lược định giá thông minh:</label>
+                        <select id="pricingStrategy">
+                            <option value="balanced">Cân bằng (gợi ý ổn định)</option>
+                            <option value="growth">Tăng trưởng (ưu tiên cạnh tranh)</option>
+                            <option value="premium">Premium (tối đa hóa lợi nhuận)</option>
+                        </select>
+                        <small class="helper-text">Công cụ tự tinh chỉnh biên lợi nhuận theo chiến lược đã chọn.</small>
+                    </div>
+
+                    <div class="cta-row">
+                        <button class="cta-btn" id="calculateBtn">⚡ Tính toán &amp; dựng dashboard</button>
+                        <div class="micro-hint">Hiệu ứng động và biểu đồ sẽ bật sau mỗi lần tính.</div>
+                    </div>
                 </div>
 
                 <div class="results-section">
@@ -183,9 +199,9 @@
                             <h3 class="section-title">💱 Cài đặt chuyển đổi tiền tệ</h3>
                             <div class="form-group">
                                 <label for="exchangeRate">Tỷ giá (VND/CNY):</label>
-                                <input type="number" id="exchangeRate" value="3750" min="1" step="0.1" onchange="updateExchangeRate()">
+                                <input type="number" id="exchangeRate" value="4000" min="1" step="0.1" onchange="updateExchangeRate()">
                                 <div class="currency-info">
-                                    1 CNY = <span id="exchangeDisplay">3,750</span> VND
+                                    1 CNY = <span id="exchangeDisplay">4,000</span> VND
                                 </div>
                             </div>
                         </div>
@@ -425,6 +441,40 @@
                         <div class="analytics-card warning">
                             <div class="analytics-value" id="dashAvgMargin">0%</div>
                             <div class="analytics-label">Tỷ suất LN trung bình</div>
+                        </div>
+                    </div>
+
+                    <div class="chart-grid">
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <div>
+                                    <p class="chart-kicker">Radar chi phí</p>
+                                    <h3>🧭 Cơ cấu chi phí</h3>
+                                </div>
+                                <span class="pill">Live</span>
+                            </div>
+                            <canvas id="costDonutChart" height="200"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <div>
+                                    <p class="chart-kicker">Xu hướng lợi nhuận</p>
+                                    <h3>🚀 Revenue &amp; Profit</h3>
+                                </div>
+                                <span class="pill accent">Realtime</span>
+                            </div>
+                            <canvas id="profitSparkChart" height="200"></canvas>
+                        </div>
+                        <div class="chart-card wide">
+                            <div class="chart-header">
+                                <div>
+                                    <p class="chart-kicker">Biên lợi nhuận</p>
+                                    <h3>📈 Margin Benchmark</h3>
+                                </div>
+                                <span class="pill muted">Pro insight</span>
+                            </div>
+                            <canvas id="marginBarChart" height="120"></canvas>
+                            <div class="chart-footnote">So sánh biên lợi nhuận thực tế với mục tiêu 25% và mức cân bằng.</div>
                         </div>
                     </div>
 
